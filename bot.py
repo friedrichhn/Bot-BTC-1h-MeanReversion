@@ -4,6 +4,7 @@ import threading
 from flask import Flask
 import pandas as pd
 import numpy as np
+import requests
 from binance.client import Client
 
 # Servidor Flask para Web Service en Render
@@ -17,10 +18,27 @@ def health_check():
 API_KEY = os.getenv("BINANCE_API_KEY")
 API_SECRET = os.getenv("BINANCE_API_SECRET")
 
+# Configuración de Telegram
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
 client = Client(API_KEY, API_SECRET, testnet=True)
 SYMBOL = "BTCUSDT"
 TIMEFRAME = Client.KLINE_INTERVAL_1HOUR
 LEVERAGE = 10  # Configurado a 10x
+
+def send_telegram_alert(message):
+    if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+            payload = {
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message,
+                "parse_mode": "Markdown"
+            }
+            requests.post(url, json=payload, timeout=5)
+        except Exception as e:
+            print(f"⚠️ Error enviando alerta a Telegram: {e}", flush=True)
 
 def init_leverage():
     try:
@@ -81,6 +99,9 @@ def run_trading_bot():
     print(f"🚀 Iniciando Bucle de Monitoreo - Estrategia 2 (Mean Reversion 1h) | {SYMBOL}", flush=True)
     init_leverage()
     
+    # Mensaje de confirmación de arranque a Telegram
+    send_telegram_alert("🤖 *Bot Estrategia 2 (1h Mean Reversion)* iniciado correctamente en Render.")
+    
     last_processed_time = None
     
     while True:
@@ -98,13 +119,29 @@ def run_trading_bot():
                 timestamp_str = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(candle_time/1000))
                 print(f"[{timestamp_str} UTC] VELA 1H CERRADA | Precio: ${close_price:.2f} | Z-Score: {z_score:.2f} | RSI: {rsi:.2f} | ADX: {adx:.2f}", flush=True)
                 
-                # CONDICIÓN LONG (Sobrevendido en Rango Lateral)
+                # CONDICIÓN LONG (Sobrevendido en Rango)
                 if z_score < -2.0 and rsi < 35 and adx < 20:
-                    print("🟢 SEÑAL LONG (MEAN REVERSION): Enviando orden a Binance Testnet...", flush=True)
+                    msg = (
+                        f"🟢 *SEÑAL LONG DETECTADA (10x)*\n\n"
+                        f"*Estrategia:* 2 (1h Mean Reversion)\n"
+                        f"*Par:* {SYMBOL}\n"
+                        f"*Precio:* ${close_price:.2f}\n"
+                        f"*Z-Score:* {z_score:.2f} | *RSI:* {rsi:.2f} | *ADX:* {adx:.2f}"
+                    )
+                    print(msg, flush=True)
+                    send_telegram_alert(msg)
                     
-                # CONDICIÓN SHORT (Sobrecomprado en Rango Lateral)
+                # CONDICIÓN SHORT (Sobrecomprado en Rango)
                 elif z_score > 2.0 and rsi > 65 and adx < 20:
-                    print("🔴 SEÑAL SHORT (MEAN REVERSION): Enviando orden a Binance Testnet...", flush=True)
+                    msg = (
+                        f"🔴 *SEÑAL SHORT DETECTADA (10x)*\n\n"
+                        f"*Estrategia:* 2 (1h Mean Reversion)\n"
+                        f"*Par:* {SYMBOL}\n"
+                        f"*Precio:* ${close_price:.2f}\n"
+                        f"*Z-Score:* {z_score:.2f} | *RSI:* {rsi:.2f} | *ADX:* {adx:.2f}"
+                    )
+                    print(msg, flush=True)
+                    send_telegram_alert(msg)
                     
                 else:
                     reasons = []
@@ -118,7 +155,7 @@ def run_trading_bot():
         except Exception as e:
             print(f"❌ Error en el ciclo principal 1H: {e}", flush=True)
             
-        time.sleep(60)  # Chequeo cada 60 segundos
+        time.sleep(60)
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
