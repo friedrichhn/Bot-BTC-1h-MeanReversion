@@ -180,6 +180,14 @@ def run_trading_bot():
                     print(msg, flush=True)
                     send_telegram_alert(msg)
                     
+                else:
+                    reasons = []
+                    if abs(z_score) <= 2.0: reasons.append(f"Z-Score dentro de rango ({z_score:.2f})")
+                    if adx >= 30: reasons.append(f"ADX muy alto / tendencia fuerte ({adx:.1f})")
+                    if z_score < -2.0 and rsi >= 35: reasons.append(f"RSI alto para compra ({rsi:.1f})")
+                    if z_score > 2.0 and rsi <= 65: reasons.append(f"RSI bajo para venta ({rsi:.1f})")
+                    print("Sin entrada 1H. Motivo:", ", ".join(reasons), flush=True)
+                    
                 last_processed_time = candle_time
                 
         except Exception as e:
