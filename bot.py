@@ -50,6 +50,7 @@ def execute_binance_trade(side, close_price, tp_price, sl_price):
         notional_value = INITIAL_CAPITAL * LEVERAGE
         quantity = round(notional_value / close_price, 3)
         
+        # 1. Orden de Mercado Principal
         order = client.futures_create_order(
             symbol=SYMBOL,
             side=side,
@@ -58,21 +59,25 @@ def execute_binance_trade(side, close_price, tp_price, sl_price):
         )
         print(f"✅ Orden de Mercado Ejecutada en Binance: {side} {quantity} BTC", flush=True)
         
+        # Dirección opuesta para cerrar la posición
         tp_side = 'SELL' if side == 'BUY' else 'BUY'
+        
+        # 2. Take Profit con cantidad explícita (sin closePosition)
         client.futures_create_order(
             symbol=SYMBOL,
             side=tp_side,
             type='TAKE_PROFIT_MARKET',
             stopPrice=round(tp_price, 2),
-            closePosition=True
+            quantity=quantity
         )
         
+        # 3. Stop Loss con cantidad explícita (sin closePosition)
         client.futures_create_order(
             symbol=SYMBOL,
             side=tp_side,
             type='STOP_MARKET',
             stopPrice=round(sl_price, 2),
-            closePosition=True
+            quantity=quantity
         )
         
         return f"🚀 *ORDEN EJECUTADA EN BINANCE TESTNET*\nCantidad: `{quantity} BTC` (${notional_value} Notional)"
